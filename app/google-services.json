@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "650126753502",
+    "project_id": "possystem-385ea",
+    "storage_bucket": "possystem-385ea.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:650126753502:android:0f55ded5a8edba24af0c4f",
+        "android_client_info": {
+          "package_name": "com.example.pos_system"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA3oEgFtYnz1kwQ1jkpkijpiih925lfVBg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
