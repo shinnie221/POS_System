@@ -6,8 +6,8 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "sales")
 data class SalesEntity(
     @PrimaryKey
-    val saleId: String,
-    val totalAmount: Double,
+    val id: String,
     val timestamp: Long,
-    val itemsJson: String // Stores the list of items sold as a JSON string
+    val totalAmount: Double,
+    val itemsJson: String
 )

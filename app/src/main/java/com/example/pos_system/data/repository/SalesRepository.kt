@@ -5,6 +5,7 @@ import com.example.pos_system.data.local.database.entity.SalesEntity
 import com.example.pos_system.data.model.Sales
 import com.example.pos_system.data.remote.FirebaseService
 import com.google.gson.Gson
+import java.util.UUID
 
 class SalesRepository(
     private val salesDao: SalesDao,
@@ -13,9 +14,12 @@ class SalesRepository(
     val salesHistory = salesDao.getAllSales()
 
     suspend fun processCheckout(salesModel: Sales) {
+        // generate a unique ID
+        val saleId = UUID.randomUUID().toString()
+
         // 1. Prepare Room Entity
         val salesEntity = SalesEntity(
-            saleId = salesModel.saleId,
+            id = saleId,
             totalAmount = salesModel.finalPrice,
             timestamp = salesModel.dateTime,
             itemsJson = Gson().toJson(salesModel.items)
@@ -25,7 +29,8 @@ class SalesRepository(
         salesDao.insertSale(salesEntity)
 
         // 3. Sync to Firebase
-        firebaseService.recordSale(salesModel)
+        val updatedSalesModel = salesModel.copy(saleId = saleId) // Assuming Sales data class has a saleId property
+        firebaseService.recordSale(updatedSalesModel)
     } // processCheckout ends here
 
     // FIXED: Move this OUTSIDE of processCheckout
@@ -55,7 +60,7 @@ class SalesRepository(
                 // you'd need to convert them back to JSON here.
 
                 val entity = SalesEntity(
-                    saleId = docId,
+                    id = docId,
                     totalAmount = finalPrice,
                     timestamp = timestamp,
                     itemsJson = itemsJson

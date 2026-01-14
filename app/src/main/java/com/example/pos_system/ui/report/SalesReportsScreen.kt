@@ -223,7 +223,7 @@ fun OrderDetailDialog(sale: SalesEntity, onDismiss: () -> Unit) {
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close", color = Color(0xFFD2B48C)) } },
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(painterResource(R.drawable.recipt), null, Modifier.size(24.dp), Color(0xFFD2B48C))
+                Icon(painterResource(R.drawable.receipt), null, Modifier.size(24.dp), Color(0xFFD2B48C))
                 Spacer(Modifier.width(8.dp))
                 Text("Order Detail")
             }
