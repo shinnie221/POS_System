@@ -26,7 +26,7 @@ class ItemRepository(
 
         val db = FirebaseFirestore.getInstance()
         val firebaseId = db.collection("item").document().id
-
+        val currentTime = System.currentTimeMillis()
 
         // 3. Save to local Room database
         val itemEntity = ItemEntity(
@@ -34,7 +34,8 @@ class ItemRepository(
             name = name,
             price = price,
             categoryId = categoryId,
-            itemType = itemType
+            itemType = itemType,
+            createdAt = currentTime
         )
         itemDao.insertItem(itemEntity)
 
@@ -44,17 +45,14 @@ class ItemRepository(
             name = name,
             price = price,
             catId = categoryId,
-            type = itemType
+            type = itemType,
+            createdAt = currentTime
         )
 
         // Note: If you want itemType in Firebase (which you should for sync),
         // update FirebaseService.addItem to accept it.
     }
 
-    /**
-     * Pulls items from Firebase and saves them to the local Room database.
-     * Ensures itemType is synced so the UI knows whether to show Milk/Oatmilk options.
-     */
     suspend fun syncItems() {
         try {
             val snapshot = firebaseService.helper.fetchCollectionWithIds("item")

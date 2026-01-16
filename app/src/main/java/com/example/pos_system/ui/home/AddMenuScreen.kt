@@ -89,7 +89,7 @@ fun AddMenuScreen(
                     item {
                         Text("Add New Product", style = MaterialTheme.typography.titleMedium, color = Color(0xFF4E342E))
                         Spacer(Modifier.height(8.dp))
-                        AddItemForm(categories, uiState) { n, p, c, t -> viewModel.addItem(n, p, c, t) }
+                        AddItemForm(categories, uiState,viewModel = viewModel ) { n, p, c, t -> viewModel.addItem(n, p, c, t) }
                         Spacer(Modifier.height(32.dp))
                         Text("Manage Items (Tap Category to Expand)", style = MaterialTheme.typography.titleMedium, color = Color(0xFF4E342E))
                         Spacer(Modifier.height(8.dp))
@@ -213,10 +213,12 @@ fun ExpandableCategoryItem(
 fun AddItemForm(
     categories: List<com.example.pos_system.data.local.database.entity.CategoryEntity>,
     uiState: AddMenuUiState,
-    onAdd: (String, Double, String, String) -> Unit
+    viewModel: AddMenuViewModel,
+    onAdd: (String, String, String, String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
+    val priceError by viewModel.priceError.collectAsState()
     var selectedType by remember { mutableStateOf("water") }
     var selectedCategory by remember { mutableStateOf<com.example.pos_system.data.local.database.entity.CategoryEntity?>(null) }
     var expanded by remember { mutableStateOf(false) }
@@ -246,10 +248,26 @@ fun AddItemForm(
 
             OutlinedTextField(
                 value = price,
-                onValueChange = { price = it },
+                onValueChange = {
+                    // Regex to allow only numbers and one decimal point
+                    if (it.isEmpty() || it.matches(Regex("""^\d*\.?\d*$"""))) {
+                        price = it
+                    }
+                },
                 label = { Text("Price (RM)") },
                 modifier = Modifier.fillMaxWidth(),
-                singleLine = true
+                singleLine = true,
+                // 1. Show error state if priceError exists in ViewModel
+                isError = priceError != null,
+                supportingText = {
+                    if (priceError != null) {
+                        Text(text = priceError!!, color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                // 2. Set keyboard to Number/Decimal
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                )
             )
 
             Text("Item Base Type:", fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -296,7 +314,7 @@ fun AddItemForm(
             Button(
                 onClick = {
                     if (name.isNotBlank() && price.isNotEmpty() && selectedCategory != null) {
-                        onAdd(name, price.toDoubleOrNull() ?: 0.0, selectedCategory!!.id, selectedType)
+                        onAdd(name, price, selectedCategory?.id ?: "", selectedType)
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),

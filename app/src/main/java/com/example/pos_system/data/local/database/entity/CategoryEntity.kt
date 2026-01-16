@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class CategoryEntity(
     @PrimaryKey
     val id: String,
-    val name: String
+    val name: String,
+    val createdAt: Long = System.currentTimeMillis()
 )

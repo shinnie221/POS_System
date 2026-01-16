@@ -15,20 +15,18 @@ class CategoryRepository(
 ) {
     val allCategories: Flow<List<CategoryEntity>> = categoryDao.getAllCategories()
 
-    /**
-     * Uses a Firebase generated ID for both Room and Firestore.
-     */
     suspend fun addCategory(name: String) {
         // 1. Get a new ID from Firebase without creating the document yet
         val db = FirebaseFirestore.getInstance()
         val firebaseId = db.collection("category").document().id
+        val currentTime = System.currentTimeMillis()
 
         // 2. Save locally using that specific Firebase ID (e.g., 0oVAzXR...)
-        val newCategory = CategoryEntity(id = firebaseId, name = name)
+        val newCategory = CategoryEntity(id = firebaseId, name = name,createdAt = currentTime)
         categoryDao.insertCategory(newCategory)
 
         // 3. Sync to Firebase using the SAME ID
-        firebaseService.addCategory(id = firebaseId, name = name)
+        firebaseService.addCategory(id = firebaseId, name = name, createdAt = currentTime)
     }
 
     suspend fun deleteCategory(categoryId: String) {

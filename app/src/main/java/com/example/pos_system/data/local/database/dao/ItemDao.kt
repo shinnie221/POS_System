@@ -6,11 +6,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ItemDao {
-    @Query("SELECT * FROM items ORDER BY name ASC")
+    @Query("SELECT * FROM items WHERE categoryId = :catId ORDER BY createdAt ASC")
+    fun getItemsByCategory(catId: String): Flow<List<ItemEntity>>
+
+    @Query("SELECT * FROM items ORDER BY createdAt ASC")
     fun getAllItems(): Flow<List<ItemEntity>>
 
-    @Query("SELECT * FROM items WHERE categoryId = :catId")
-    fun getItemsByCategory(catId: String): Flow<List<ItemEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertItem(item: ItemEntity)

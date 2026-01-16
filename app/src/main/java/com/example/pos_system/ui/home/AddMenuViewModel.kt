@@ -19,6 +19,9 @@ class AddMenuViewModel(application: Application) : AndroidViewModel(application)
     val categories = categoryRepo.allCategories
     val items = itemRepo.allItems
 
+    private val _priceError = MutableStateFlow<String?>(null)
+    val priceError = _priceError.asStateFlow()
+
     private val _uiState = MutableStateFlow<AddMenuUiState>(AddMenuUiState.Idle)
     val uiState: StateFlow<AddMenuUiState> = _uiState.asStateFlow()
 
@@ -29,7 +32,25 @@ class AddMenuViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun addItem(name: String, price: Double, categoryId: String, type: String) {
+    fun addItem(name: String, priceStr: String, categoryId: String, type: String) {
+        val price = priceStr.toDoubleOrNull()
+
+        // VALIDATION
+        if (name.isBlank()) {
+            _uiState.value = AddMenuUiState.Error("Product name cannot be empty")
+            return
+        }
+        if (price == null || price <= 0) {
+            _priceError.value = "Please enter a valid price (e.g. 10.50)"
+            return
+        }
+        if (categoryId.isEmpty()) {
+            _uiState.value = AddMenuUiState.Error("Please select a category")
+            return
+        }
+
+        _priceError.value = null // Clear error if valid
+
         viewModelScope.launch {
             try {
                 itemRepo.addItem(

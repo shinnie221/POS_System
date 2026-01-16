@@ -7,8 +7,8 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface CategoryDao {
 
-    // Get all categories to display in your POS list
-    @Query("SELECT * FROM categories ORDER BY name ASC")
+    //Add category follow created time
+    @Query("SELECT * FROM categories ORDER BY createdAt ASC")
     fun getAllCategories(): Flow<List<CategoryEntity>>
 
     // Add a new category (like "Drinks" or "Snacks")

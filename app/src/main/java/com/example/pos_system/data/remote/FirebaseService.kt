@@ -9,10 +9,12 @@ import kotlinx.coroutines.tasks.await
 class FirebaseService(val helper: FirebaseHelper = FirebaseHelper()) {
     private val db = FirebaseFirestore.getInstance()
 
-    fun addCategory(id: String, name: String) {
+    fun addCategory(id: String, name: String,createdAt: Long) {
         val data = hashMapOf(
             "categoryId" to id,
-            "categoryName" to name)
+            "categoryName" to name,
+            "createdAt" to createdAt
+            )
 
         // Use .document(id).set() to force the specific ID
         db.collection("category")
@@ -20,13 +22,14 @@ class FirebaseService(val helper: FirebaseHelper = FirebaseHelper()) {
             .set(data)
     }
 
-    fun addItem(id: String, name: String, price: Double, catId: String, type: String) {
+    fun addItem(id: String, name: String, price: Double, catId: String, type: String,createdAt: Long) {
         val item = mapOf(
             "itemId" to id,
             "itemName" to name,
             "itemPrice" to price,
             "categoryId" to catId,
-            "itemType" to type
+            "itemType" to type,
+            "createdAt" to createdAt
         )
         // Use the specific ID instead of .add()
         db.collection("item").document(id).set(item)

@@ -10,5 +10,6 @@ data class ItemEntity(
     val name: String,
     val price: Double,
     val categoryId: String, // Link to CategoryEntity
-    val itemType: String = "water"
+    val itemType: String,
+    val createdAt: Long = System.currentTimeMillis()
 )
