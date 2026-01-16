@@ -1,65 +1,69 @@
 package com.example.pos_system.data.repository
 
 import com.example.pos_system.data.local.database.dao.CategoryDao
+import com.example.pos_system.data.local.database.dao.ItemDao
 import com.example.pos_system.data.local.database.entity.CategoryEntity
 import com.example.pos_system.data.remote.FirebaseService
+import com.google.firebase.firestore.FirebaseFirestore // Add this import
 import kotlinx.coroutines.flow.Flow
-import java.util.UUID
+import kotlinx.coroutines.flow.first
 
 class CategoryRepository(
     private val categoryDao: CategoryDao,
+    private val itemDao: ItemDao,
     private val firebaseService: FirebaseService
 ) {
-    // Get real-time updates for the UI from local Room database
     val allCategories: Flow<List<CategoryEntity>> = categoryDao.getAllCategories()
 
     /**
-     * Adds a category both locally and to Firebase.
-     * We generate a UUID for the local ID which will be overwritten by
-     * the Firebase Sync later, or we use the Firebase document ID.
+     * Uses a Firebase generated ID for both Room and Firestore.
      */
     suspend fun addCategory(name: String) {
-        // 1. We generate a temporary ID to save locally first
-        val tempId = UUID.randomUUID().toString()
-        val newCategory = CategoryEntity(id = tempId, name = name)
+        // 1. Get a new ID from Firebase without creating the document yet
+        val db = FirebaseFirestore.getInstance()
+        val firebaseId = db.collection("category").document().id
+
+        // 2. Save locally using that specific Firebase ID (e.g., 0oVAzXR...)
+        val newCategory = CategoryEntity(id = firebaseId, name = name)
         categoryDao.insertCategory(newCategory)
 
-        // 2. Sync to Firebase - Firebase will generate its own auto-id
-        // We pass the name to addCategory.
-        firebaseService.addCategory(id = tempId, name = name)
+        // 3. Sync to Firebase using the SAME ID
+        firebaseService.addCategory(id = firebaseId, name = name)
     }
 
     suspend fun deleteCategory(categoryId: String) {
-        categoryDao.deleteCategory(categoryId)
+        try {
+            val associatedItems = itemDao.getItemsByCategory(categoryId).first()
+
+            associatedItems.forEach { item ->
+                itemDao.deleteItem(item)
+                firebaseService.deleteItem(item.id)
+            }
+
+            // 3. Delete the category itself locally
+            categoryDao.deleteCategory(categoryId)
+
+            // 4. Delete the category from Firebase
+            firebaseService.deleteCategory(categoryId)
+
+        } catch (e: Exception) {
+            android.util.Log.e("DELETE_ERROR", "Cascade delete failed: ${e.message}")
+        }
     }
 
-    /**
-     * Syncs categories from Firebase 'category' collection to Room.
-     * It uses the Firebase Document ID as the Room Primary Key.
-     */
     suspend fun syncCategories() {
         try {
-            // Fetch the Map of <DocumentID, DataMap>
             val snapshot = firebaseService.helper.fetchCollectionWithIds("category")
-
-            android.util.Log.d("SYNC_DEBUG", "Syncing ${snapshot.size} categories from Firebase")
-
             snapshot.forEach { (docId, data) ->
                 val name = data["categoryName"] as? String ?: ""
-
                 if (name.isNotEmpty()) {
-                    // We use the ACTUAL Firebase Document ID as the ID in Room.
-                    // This ensures that items with categoryId = "docId" will match perfectly.
-                    val entity = CategoryEntity(
-                        id = docId,
-                        name = name
-                    )
+                    // Uses docId (Firebase ID) directly as the primary key
+                    val entity = CategoryEntity(id = docId, name = name)
                     categoryDao.insertCategory(entity)
-                    android.util.Log.d("SYNC_DEBUG", "Synced Category: $name with ID: $docId")
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("SYNC_DEBUG", "Error syncing categories: ${e.message}")
+            android.util.Log.e("SYNC_DEBUG", "Error: ${e.message}")
         }
     }
 }

@@ -63,7 +63,12 @@ fun ProfileScreen(
                 elevation = CardDefaults.cardElevation(2.dp)
             ) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(painterResource(id = R.drawable.restaurantmenu), null, Modifier.size(32.dp), Color(0xFFD2B48C))
+                    Icon(
+                        painter = painterResource(id = R.drawable.restaurantmenu),
+                        contentDescription = "Menu Icon",
+                        modifier = Modifier.size(32.dp),
+                        tint = Color.Unspecified // <--- CHANGE THIS from Color(0xFFD2B48C)
+                    )
                     Spacer(Modifier.width(16.dp))
                     Column {
                         Text("Menu Management", fontWeight = FontWeight.Bold, color = Color(0xFF4E342E))

@@ -9,5 +9,6 @@ data class SalesEntity(
     val id: String,
     val timestamp: Long,
     val totalAmount: Double,
-    val itemsJson: String
+    val itemsJson: String,
+    val paymentType: String
 )

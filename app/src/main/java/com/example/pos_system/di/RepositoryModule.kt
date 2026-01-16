@@ -17,6 +17,7 @@ class RepositoryModule(
     val categoryRepository: CategoryRepository by lazy {
         CategoryRepository(
             categoryDao = databaseModule.provideCategoryDao(),
+            itemDao = databaseModule.provideItemDao(),
             firebaseService = networkModule.firebaseService
         )
     }
@@ -24,8 +25,7 @@ class RepositoryModule(
     val itemRepository: ItemRepository by lazy {
         ItemRepository(
             itemDao = databaseModule.provideItemDao(),
-            firebaseService = networkModule.firebaseService,
-            cloudinaryService = networkModule.cloudinaryService
+            firebaseService = networkModule.firebaseService
         )
     }
 

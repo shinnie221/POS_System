@@ -4,8 +4,8 @@ import com.example.pos_system.data.local.database.dao.SalesDao
 import com.example.pos_system.data.local.database.entity.SalesEntity
 import com.example.pos_system.data.model.Sales
 import com.example.pos_system.data.remote.FirebaseService
+import com.google.firebase.firestore.FirebaseFirestore
 import com.google.gson.Gson
-import java.util.UUID
 
 class SalesRepository(
     private val salesDao: SalesDao,
@@ -14,29 +14,37 @@ class SalesRepository(
     val salesHistory = salesDao.getAllSales()
 
     suspend fun processCheckout(salesModel: Sales) {
-        // generate a unique ID
-        val saleId = UUID.randomUUID().toString()
+        val db = FirebaseFirestore.getInstance()
+        val firebaseId = db.collection("sales").document().id
+
 
         // 1. Prepare Room Entity
         val salesEntity = SalesEntity(
-            id = saleId,
+            id = firebaseId,
             totalAmount = salesModel.finalPrice,
             timestamp = salesModel.dateTime,
-            itemsJson = Gson().toJson(salesModel.items)
+            itemsJson = Gson().toJson(salesModel.items),
+            paymentType = salesModel.paymentType
         )
 
         // 2. Save to Local Room
         salesDao.insertSale(salesEntity)
 
         // 3. Sync to Firebase
-        val updatedSalesModel = salesModel.copy(saleId = saleId) // Assuming Sales data class has a saleId property
+        val updatedSalesModel = salesModel.copy(saleId = firebaseId) // Assuming Sales data class has a saleId property
         firebaseService.recordSale(updatedSalesModel)
     } // processCheckout ends here
 
-    // FIXED: Move this OUTSIDE of processCheckout
     suspend fun deleteSale(sale: SalesEntity) {
+        //Delete from local room
         salesDao.deleteSale(sale)
-        // Optionally add Firebase deletion here later
+
+        //Delete from firebase
+        try {
+            firebaseService.deleteSale(sale.id)
+        } catch (e: Exception) {
+            android.util.Log.e("DELETE_ERROR", "Sale Firebase delete failed: ${e.message}")
+        }
     }
 
     // Inside SalesRepository.kt
@@ -63,7 +71,8 @@ class SalesRepository(
                     id = docId,
                     totalAmount = finalPrice,
                     timestamp = timestamp,
-                    itemsJson = itemsJson
+                    itemsJson = itemsJson,
+                    paymentType = data["paymentType"] as? String ?: "Cash"
                 )
 
                 // 2. Save to Room

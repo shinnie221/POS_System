@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Allows sharing files from the internal cache (ExportHelper usually uses this) -->
+    <cache-path name="my_cache" path="." />
+    <!-- Allows sharing files from external storage -->
+    <external-path name="my_external" path="." />
+    <external-files-path name="my_external_files" path="." />
+</paths>

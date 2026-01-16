@@ -4,13 +4,13 @@ import com.example.pos_system.data.local.database.dao.ItemDao
 import com.example.pos_system.data.local.database.entity.ItemEntity
 import com.example.pos_system.data.remote.CloudinaryService
 import com.example.pos_system.data.remote.FirebaseService
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.Flow
 import java.util.UUID
 
 class ItemRepository(
     private val itemDao: ItemDao,
-    private val firebaseService: FirebaseService,
-    private val cloudinaryService: CloudinaryService
+    private val firebaseService: FirebaseService
 ) {
     // Get all items from local Room database
     val allItems: Flow<List<ItemEntity>> = itemDao.getAllItems()
@@ -23,20 +23,14 @@ class ItemRepository(
      * Generates a unique String ID to ensure compatibility with Firebase auto-generated IDs.
      */
     suspend fun addItem(name: String, price: Double, categoryId: String, itemType: String, imagePath: String? = null) {
-        // 1. Handle image upload via Cloudinary if a path is provided
-        var finalImageUrl = ""
-        if (imagePath != null) {
-            cloudinaryService.uploadItemImage(imagePath) { url ->
-                finalImageUrl = url ?: ""
-            }
-        }
 
-        // 2. Generate a unique ID for the new item
-        val uniqueId = UUID.randomUUID().toString()
+        val db = FirebaseFirestore.getInstance()
+        val firebaseId = db.collection("item").document().id
+
 
         // 3. Save to local Room database
         val itemEntity = ItemEntity(
-            id = uniqueId,
+            id = firebaseId,
             name = name,
             price = price,
             categoryId = categoryId,
@@ -46,7 +40,7 @@ class ItemRepository(
 
         // 4. Sync to Firebase
         firebaseService.addItem(
-            id = uniqueId,
+            id = firebaseId,
             name = name,
             price = price,
             catId = categoryId,
@@ -98,6 +92,10 @@ class ItemRepository(
 
     suspend fun deleteItem(item: ItemEntity) {
         itemDao.deleteItem(item)
-        // Optionally add firebaseService.deleteItem here
+        try {
+            firebaseService.deleteItem(item.id)
+        } catch (e: Exception) {
+            android.util.Log.e("DELETE_ERROR", "Item Firebase delete failed: ${e.message}")
+        }
     }
 }

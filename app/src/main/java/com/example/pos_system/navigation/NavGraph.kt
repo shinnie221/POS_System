@@ -9,7 +9,8 @@ import com.example.pos_system.ui.auth.*
 import com.example.pos_system.ui.cart.*
 import com.example.pos_system.ui.home.*
 import com.example.pos_system.ui.profile.*
-import com.example.pos_system.ui.sales.SalesReportsScreen
+import com.example.pos_system.ui.report.SalesReportsScreen
+
 
 @Composable
 fun POSNavGraph() {

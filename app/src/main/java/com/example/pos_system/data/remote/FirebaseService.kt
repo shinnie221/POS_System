@@ -1,17 +1,26 @@
 package com.example.pos_system.data.remote
 
+import com.example.pos_system.data.local.database.entity.SalesEntity
 import com.example.pos_system.data.model.Sales
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
+//Link id to firebase id is added here
 class FirebaseService(val helper: FirebaseHelper = FirebaseHelper()) {
+    private val db = FirebaseFirestore.getInstance()
 
-    suspend fun addCategory(id: String, name: String) {
-        helper.saveData("category", mapOf(
+    fun addCategory(id: String, name: String) {
+        val data = hashMapOf(
             "categoryId" to id,
-            "categoryName" to name
-        ))
+            "categoryName" to name)
+
+        // Use .document(id).set() to force the specific ID
+        db.collection("category")
+            .document(id)
+            .set(data)
     }
 
-    suspend fun addItem(id: String, name: String, price: Double, catId: String, type: String) {
+    fun addItem(id: String, name: String, price: Double, catId: String, type: String) {
         val item = mapOf(
             "itemId" to id,
             "itemName" to name,
@@ -20,7 +29,7 @@ class FirebaseService(val helper: FirebaseHelper = FirebaseHelper()) {
             "itemType" to type
         )
         // Use the specific ID instead of .add()
-        helper.setDataWithId("item", id, item)
+        db.collection("item").document(id).set(item)
     }
 
     suspend fun recordSale(sale: Sales) {
@@ -44,5 +53,18 @@ class FirebaseService(val helper: FirebaseHelper = FirebaseHelper()) {
         )
         // Use the ID generated in the ViewModel to save
         helper.setDataWithId("sales", sale.saleId, saleData)
+    }
+
+    suspend fun deleteCategory(id: String) {
+        db.collection("category").document(id).delete().await()
+    }
+
+    suspend fun deleteItem(id: String) {
+        db.collection("item").document(id).delete().await()
+    }
+
+    suspend fun deleteSale(id: String) {
+        // If your sales IDs are Strings in Firebase
+        db.collection("sales").document(id).delete().await()
     }
 }
