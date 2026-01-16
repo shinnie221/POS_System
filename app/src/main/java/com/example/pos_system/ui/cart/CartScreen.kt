@@ -50,6 +50,7 @@ fun CartScreen(
                 .padding(padding)
                 .background(Color(0xFFFDF8F3))
         ) {
+            // Header
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -86,6 +87,29 @@ fun CartScreen(
                     }
                 }
 
+                // Payment Method Selector
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text("Payment Method", fontWeight = FontWeight.Bold, color = Color(0xFF4E342E))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("Cash", "E-Wallet", "Delivery").forEach { method ->
+                            val isSelected = cartViewModel.selectedPaymentMethod == method
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = { cartViewModel.setPaymentMethod(method) },
+                                label = { Text(method) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFFD2B48C),
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // Checkout Card
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -117,6 +141,7 @@ fun CartScreen(
             }
         }
     }
+
 
     if (showDiscountDialog) {
         DiscountDialog(

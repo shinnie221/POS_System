@@ -41,6 +41,7 @@ class FirebaseService(val helper: FirebaseHelper = FirebaseHelper()) {
             "saleId" to sale.saleId,
             "totalAmount" to sale.totalAmount,
             "discountApplied" to sale.discountApplied,
+            "paymentType" to sale.paymentType,
             "dateTime" to com.google.firebase.Timestamp(java.util.Date(sale.dateTime)), // Store as Firebase Timestamp
             "finalPrice" to sale.finalPrice,
             "items" to sale.items.map { cartItem ->

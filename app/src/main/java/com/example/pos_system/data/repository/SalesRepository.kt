@@ -6,6 +6,7 @@ import com.example.pos_system.data.model.Sales
 import com.example.pos_system.data.remote.FirebaseService
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.gson.Gson
+import kotlinx.coroutines.flow.Flow
 
 class SalesRepository(
     private val salesDao: SalesDao,
@@ -47,6 +48,11 @@ class SalesRepository(
         }
     }
 
+    fun getSalesForPeriod(startDate: Long, endDate: Long): Flow<List<SalesEntity>> {
+        // You might need to add this @Query to your SalesDao
+        return salesDao.getSalesPeriod(startDate, endDate)
+    }
+
     // Inside SalesRepository.kt
     suspend fun syncSales() {
         try {
@@ -63,9 +69,12 @@ class SalesRepository(
                     else -> System.currentTimeMillis()
                 }
 
-                val itemsJson = data["itemsJson"] as? String ?: ""
-                // Note: If you stored items as an Array in Firebase,
-                // you'd need to convert them back to JSON here.
+                val itemsData = data["items"]
+                val itemsJson = when (itemsData) {
+                    is String -> itemsData // If it's already a string
+                    is List<*> -> Gson().toJson(itemsData) // If it's a Firebase Array (Manual Entry)
+                    else -> data["itemsJson"] as? String ?: "[]" // Fallback to your old key
+                }
 
                 val entity = SalesEntity(
                     id = docId,

@@ -1,7 +1,6 @@
 package com.example.pos_system.util
 
 import android.content.Context
-import com.example.pos_system.data.local.database.Converters
 import com.example.pos_system.data.local.database.entity.SalesEntity
 import com.itextpdf.kernel.pdf.PdfDocument
 import com.itextpdf.kernel.pdf.PdfWriter
@@ -41,22 +40,42 @@ class ExportHelper(private val context: Context) {
         }
 
         var comparisonText = "N/A"
-        if (fileName.lowercase().contains("monthly") && currentSales.isNotEmpty()) {
+        if (currentSales.isNotEmpty()) {
             val cal = Calendar.getInstance().apply { timeInMillis = currentSales[0].timestamp }
-            val currentMonth = cal.get(Calendar.MONTH)
-            val currentYear = cal.get(Calendar.YEAR)
-            cal.add(Calendar.MONTH, -1)
-            val prevMonth = cal.get(Calendar.MONTH)
-            val prevYear = cal.get(Calendar.YEAR)
 
-            val lastMonthTotal = allSales.filter {
-                val sCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
-                sCal.get(Calendar.MONTH) == prevMonth && sCal.get(Calendar.YEAR) == prevYear
-            }.sumOf { it.totalAmount }
+            if (fileName.contains("Monthly", ignoreCase = true)) {
+                val targetMonth = cal.get(Calendar.MONTH)
+                val targetYear = cal.get(Calendar.YEAR)
+                val prevCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, targetYear)
+                    set(Calendar.MONTH, targetMonth)
+                    add(Calendar.MONTH, -1)
+                }
+                val prevTotal = allSales.filter {
+                    val sCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+                    sCal.get(Calendar.YEAR) == prevCal.get(Calendar.YEAR) &&
+                            sCal.get(Calendar.MONTH) == prevCal.get(Calendar.MONTH)
+                }.sumOf { it.totalAmount }
 
-            if (lastMonthTotal > 0) {
-                val diff = ((totalRevenue - lastMonthTotal) / lastMonthTotal) * 100
-                comparisonText = "${if (diff >= 0) "+" else ""}${String.format("%.1f", diff)}% vs Last Month"
+                if (prevTotal > 0) {
+                    val diff = ((totalRevenue - prevTotal) / prevTotal) * 100
+                    comparisonText = "${if (diff >= 0) "+" else ""}${String.format("%.1f", diff)}% vs Last Month"
+                } else {
+                    comparisonText = "No Last Month Data"
+                }
+            } else if (fileName.contains("Yearly", ignoreCase = true)) {
+                val targetYear = cal.get(Calendar.YEAR)
+                val prevYearTotal = allSales.filter {
+                    val sCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+                    sCal.get(Calendar.YEAR) == (targetYear - 1)
+                }.sumOf { it.totalAmount }
+
+                if (prevYearTotal > 0) {
+                    val diff = ((totalRevenue - prevYearTotal) / prevYearTotal) * 100
+                    comparisonText = "${if (diff >= 0) "+" else ""}${String.format("%.1f", diff)}% vs Last Year"
+                } else {
+                    comparisonText = "No Last Year Data"
+                }
             }
         }
 
@@ -84,10 +103,11 @@ class ExportHelper(private val context: Context) {
             sheet.createRow(r++).createCell(0).setCellValue("1. SALES SUMMARY")
             sheet.createRow(r++).apply { createCell(0).setCellValue("Total Sales:"); createCell(1).setCellValue("RM ${String.format("%.2f", data.revenue)}") }
             sheet.createRow(r++).apply { createCell(0).setCellValue("Transactions:"); createCell(1).setCellValue(data.transactions.toDouble()) }
-            if (fileName.lowercase().contains("monthly") || fileName.lowercase().contains("yearly")) {
-                sheet.createRow(r++).apply { createCell(0).setCellValue("Sales Comparison:"); createCell(1).setCellValue(data.comparison) }
-                sheet.createRow(r++).apply { createCell(0).setCellValue("Peak Day:"); createCell(1).setCellValue(data.peakDay) }
-            }
+
+            // FIX: Changed "Yearly Comparison" to generic "Comparison" to support Monthly reports
+            sheet.createRow(r++).apply { createCell(0).setCellValue("Comparison:"); createCell(1).setCellValue(data.comparison) }
+            sheet.createRow(r++).apply { createCell(0).setCellValue("Peak Day:"); createCell(1).setCellValue(data.peakDay) }
+
             r++
             sheet.createRow(r++).createCell(0).setCellValue("2. PAYMENT BREAKDOWN")
             sheet.createRow(r++).apply { createCell(0).setCellValue("Cash:"); createCell(1).setCellValue("RM ${String.format("%.2f", data.cash)}") }
@@ -114,10 +134,10 @@ class ExportHelper(private val context: Context) {
             document.add(Paragraph("\n1. SALES SUMMARY").setBold())
             document.add(Paragraph("Total Sales: RM ${String.format("%.2f", data.revenue)}"))
             document.add(Paragraph("Transactions: ${data.transactions}"))
-            if (fileName.lowercase().contains("monthly") || fileName.lowercase().contains("yearly")) {
-                document.add(Paragraph("Sales Comparison: ${data.comparison}"))
-                document.add(Paragraph("Peak Day: ${data.peakDay}"))
-            }
+
+            // FIX: Changed "Yearly Comparison" to generic "Comparison"
+            document.add(Paragraph("Comparison: ${data.comparison}"))
+            document.add(Paragraph("Peak Day: ${data.peakDay}"))
 
             document.add(Paragraph("\n2. PAYMENT BREAKDOWN").setBold())
             val pTable = Table(UnitValue.createPercentArray(floatArrayOf(1f, 1f))).useAllAvailableWidth()

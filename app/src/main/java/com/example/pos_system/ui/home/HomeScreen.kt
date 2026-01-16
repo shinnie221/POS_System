@@ -100,21 +100,22 @@ fun HomeScreen(
 
 @Composable
 fun ItemSelectionPopUp(
-    itemEntity: ItemEntity,    onDismiss: () -> Unit,
+    itemEntity: ItemEntity,
+    onDismiss: () -> Unit,
     onConfirm: (CartItem) -> Unit
 ) {
     // 1. Selection States
     var isIceSelected by remember { mutableStateOf(false) }
     var isHotSelected by remember { mutableStateOf(true) }
     var isOatmilkSelected by remember { mutableStateOf(false) }
+    var quantity by remember { mutableIntStateOf(1) } // Default to 1
 
-    // 2. Pricing Logic (FIXED)
-    // ONLY add RM1 for Ice if the item is a milk item
+    // 2. Pricing Logic
     val iceCharge = if (isIceSelected && itemEntity.itemType == "milk") 1.0 else 0.0
-    // ONLY add RM2 for Oatmilk (this option only appears for milk items)
     val oatmilkCharge = if (isOatmilkSelected && itemEntity.itemType == "milk") 2.0 else 0.0
 
-    val finalPrice = itemEntity.price + iceCharge + oatmilkCharge
+    val unitPrice = itemEntity.price + iceCharge + oatmilkCharge
+    val totalPrice = unitPrice * quantity
 
     val dialogBackground = Color(0xFFFDF5E6) // Cream Background
 
@@ -133,10 +134,10 @@ fun ItemSelectionPopUp(
                         item = Item(
                             itemId = itemEntity.id,
                             itemName = "${itemEntity.name} (${selections.joinToString(", ")})",
-                            itemPrice = finalPrice,
+                            itemPrice = unitPrice, // Save the unit price with options
                             categoryId = itemEntity.categoryId
                         ),
-                        quantity = 1
+                        quantity = quantity // Pass the selected quantity
                     )
                     onConfirm(cartItem)
                 },
@@ -168,7 +169,6 @@ fun ItemSelectionPopUp(
                     modifier = Modifier.width(240.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // --- HOT OPTION ---
                     SelectionRow(
                         label = "Hot",
                         isSelected = isHotSelected,
@@ -178,10 +178,8 @@ fun ItemSelectionPopUp(
                         }
                     )
 
-                    // --- ICE OPTION ---
                     SelectionRow(
                         label = "Ice",
-                        // Logic: Price label only shows if it's a milk item
                         priceLabel = if (itemEntity.itemType == "milk") "+ RM1" else null,
                         isSelected = isIceSelected,
                         onCheckedChange = {
@@ -190,7 +188,6 @@ fun ItemSelectionPopUp(
                         }
                     )
 
-                    // --- OATMILK OPTION (Only visible for 'milk' items) ---
                     if (itemEntity.itemType == "milk") {
                         SelectionRow(
                             label = "Oatmilk",
@@ -201,11 +198,41 @@ fun ItemSelectionPopUp(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // --- QUANTITY ROW ---
+                Row(
+                    modifier = Modifier.width(200.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { if (quantity > 1) quantity-- },
+                        modifier = Modifier.background(Color(0xFFE0E0E0), RoundedCornerShape(8.dp)).size(36.dp)
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = null, tint = Color(0xFF4E342E))
+                    }
+
+                    Text(
+                        text = quantity.toString(),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF4E342E)
+                    )
+
+                    IconButton(
+                        onClick = { quantity++ },
+                        modifier = Modifier.background(Color(0xFFE0E0E0), RoundedCornerShape(8.dp)).size(36.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF4E342E))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
 
                 // Total Price Display
                 Text(
-                    text = "RM ${String.format("%.2f", finalPrice)}",
+                    text = "RM ${String.format("%.2f", totalPrice)}",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFFD2B48C)

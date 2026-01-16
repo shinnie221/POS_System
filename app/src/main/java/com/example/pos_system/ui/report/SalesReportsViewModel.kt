@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.pos_system.POSSystem
 import com.example.pos_system.data.local.database.entity.SalesEntity
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.*
@@ -13,7 +14,8 @@ enum class ReportType { DAILY, MONTHLY, YEARLY }
 
 data class SalesSummary(
     val totalRevenue: Double = 0.0,
-    val totalTransactions: Int = 0
+    val totalTransactions: Int = 0,
+    val comparisonText: String = "No data"
 )
 
 data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
@@ -21,7 +23,6 @@ data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val 
 class SalesReportsViewModel(application: Application) : AndroidViewModel(application) {
     private val salesRepo = (application as POSSystem).appModule.salesRepository
 
-    // Full history needed for comparison logic (e.g., Feb vs Jan)
     val allSales: StateFlow<List<SalesEntity>> = salesRepo.salesHistory
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -37,27 +38,28 @@ class SalesReportsViewModel(application: Application) : AndroidViewModel(applica
     private val _paymentFilter = MutableStateFlow("All")
     val paymentFilter: StateFlow<String> = _paymentFilter.asStateFlow()
 
-    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @OptIn(ExperimentalCoroutinesApi::class)
     val filteredSales: StateFlow<List<SalesEntity>> = combine(
         _reportType, _selectedMonth, _selectedYear, _paymentFilter
     ) { type, month, year, payment ->
         Quadruple(type, month, year, payment)
-    }.flatMapLatest { (type, month, year, payment) ->
-        val range = calculateRange(type, month, year)
+    }.flatMapLatest { params ->
+        val range = calculateRange(params.first, params.second, params.third)
         salesRepo.salesHistory.map { history ->
             history.filter { sale ->
                 val isInRange = sale.timestamp in range.first..range.second
-                val matchesPayment = if (payment == "All") true
-                else sale.paymentType.equals(payment, ignoreCase = true)
+                val matchesPayment = if (params.fourth == "All") true
+                else sale.paymentType.equals(params.fourth, ignoreCase = true)
                 isInRange && matchesPayment
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val reportSummary: StateFlow<SalesSummary> = filteredSales.map { sales ->
+    val reportSummary: StateFlow<SalesSummary> = combine(filteredSales, allSales) { current, all ->
         SalesSummary(
-            totalRevenue = sales.sumOf { it.totalAmount },
-            totalTransactions = sales.size
+            totalRevenue = current.sumOf { it.totalAmount },
+            totalTransactions = current.size,
+            comparisonText = getComparisonText(current, all)
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SalesSummary())
 
@@ -70,6 +72,53 @@ class SalesReportsViewModel(application: Application) : AndroidViewModel(applica
         viewModelScope.launch { salesRepo.deleteSale(sale) }
     }
 
+    private fun getComparisonText(current: List<SalesEntity>, all: List<SalesEntity>): String {
+        if (current.isEmpty()) return "No data"
+
+        // Use the first item of the current filtered list to determine the reference date
+        val cal = Calendar.getInstance().apply { timeInMillis = current[0].timestamp }
+        val currentType = _reportType.value
+        val currentTotal = current.sumOf { it.totalAmount }
+
+        val comparisonTotal = when (currentType) {
+            ReportType.MONTHLY -> {
+                // Compare with PREVIOUS MONTH of the same year (or previous year if current is Jan)
+                val targetMonth = cal.get(Calendar.MONTH)
+                val targetYear = cal.get(Calendar.YEAR)
+
+                val prevMonthCal = Calendar.getInstance().apply {
+                    set(Calendar.YEAR, targetYear)
+                    set(Calendar.MONTH, targetMonth)
+                    add(Calendar.MONTH, -1) // Go back 1 month
+                }
+
+                all.filter {
+                    val sCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+                    sCal.get(Calendar.YEAR) == prevMonthCal.get(Calendar.YEAR) &&
+                            sCal.get(Calendar.MONTH) == prevMonthCal.get(Calendar.MONTH)
+                }.sumOf { it.totalAmount }
+            }
+            ReportType.YEARLY -> {
+                // Compare with PREVIOUS YEAR
+                val targetYear = cal.get(Calendar.YEAR)
+                all.filter {
+                    val sCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+                    sCal.get(Calendar.YEAR) == (targetYear - 1)
+                }.sumOf { it.totalAmount }
+            }
+            else -> 0.0 // Daily comparison logic can be added here if needed
+        }
+
+        val label = if (currentType == ReportType.MONTHLY) "Last Month" else "Last Year"
+
+        return if (comparisonTotal > 0) {
+            val diff = ((currentTotal - comparisonTotal) / comparisonTotal) * 100
+            "${if (diff >= 0) "+" else ""}${String.format("%.1f", diff)}% vs $label"
+        } else {
+            "No data for $label"
+        }
+    }
+
     private fun calculateRange(type: ReportType, month: Int, year: Int): Pair<Long, Long> {
         val cal = Calendar.getInstance()
         cal.set(Calendar.YEAR, year)
@@ -80,13 +129,14 @@ class SalesReportsViewModel(application: Application) : AndroidViewModel(applica
 
         return when (type) {
             ReportType.DAILY -> {
+                // Returns current day's start to now
                 val start = Calendar.getInstance().apply {
                     set(Calendar.HOUR_OF_DAY, 0)
                     set(Calendar.MINUTE, 0)
                     set(Calendar.SECOND, 0)
                     set(Calendar.MILLISECOND, 0)
                 }.timeInMillis
-                Pair(start, System.currentTimeMillis() + 86400000)
+                Pair(start, System.currentTimeMillis())
             }
             ReportType.MONTHLY -> {
                 cal.set(Calendar.MONTH, month)
@@ -95,6 +145,7 @@ class SalesReportsViewModel(application: Application) : AndroidViewModel(applica
                 cal.set(Calendar.DAY_OF_MONTH, cal.getActualMaximum(Calendar.DAY_OF_MONTH))
                 cal.set(Calendar.HOUR_OF_DAY, 23)
                 cal.set(Calendar.MINUTE, 59)
+                cal.set(Calendar.SECOND, 59)
                 Pair(start, cal.timeInMillis)
             }
             ReportType.YEARLY -> {
@@ -105,12 +156,15 @@ class SalesReportsViewModel(application: Application) : AndroidViewModel(applica
                 cal.set(Calendar.DAY_OF_MONTH, 31)
                 cal.set(Calendar.HOUR_OF_DAY, 23)
                 cal.set(Calendar.MINUTE, 59)
+                cal.set(Calendar.SECOND, 59)
                 Pair(start, cal.timeInMillis)
             }
         }
     }
 
     init {
-        viewModelScope.launch { salesRepo.syncSales() }
+        viewModelScope.launch {
+            salesRepo.syncSales()
+        }
     }
 }

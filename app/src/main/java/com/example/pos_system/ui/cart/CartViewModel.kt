@@ -1,6 +1,9 @@
 package com.example.pos_system.ui.cart
 
 import android.app.Application
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.pos_system.POSSystem
@@ -11,7 +14,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 enum class DiscountType { NONE, PERCENTAGE, AMOUNT }
 
@@ -30,6 +32,14 @@ class CartViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(CartUiState())
     val uiState: StateFlow<CartUiState> = _uiState.asStateFlow()
+
+    // Payment State
+    var selectedPaymentMethod by mutableStateOf("Cash")
+        private set
+
+    fun setPaymentMethod(method: String) {
+        selectedPaymentMethod = method
+    }
 
     fun addToCart(cartItem: CartItem) {
         _uiState.update { currentState ->
@@ -69,26 +79,20 @@ class CartViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { CartUiState() }
     }
 
-    // Inside CartViewModel.kt -> checkout function
     fun checkout(onSuccess: () -> Unit) {
         val currentState = _uiState.value
         if (currentState.items.isEmpty()) return
 
         viewModelScope.launch {
-            // Generate a random Alphanumeric ID similar to Firebase auto-id
-            val charPool : List<Char> = ('a'..'z') + ('A'..'Z') + ('0'..'9')
-            val generatedId = (1..20)
-                .map { i -> kotlin.random.Random.nextInt(0, charPool.size) }
-                .map(charPool::get)
-                .joinToString("");
-
+            // Note: processCheckout in SalesRepository generates the actual Firebase ID
             val sale = Sales(
-                saleId = generatedId, // Alphanumeric ID (e.g., wRIk8xGHDkAYWK...)
+                saleId = "",
                 totalAmount = currentState.totalAmount,
                 discountApplied = currentState.discountApplied,
                 finalPrice = currentState.finalPrice,
                 items = currentState.items,
-                dateTime = System.currentTimeMillis()
+                dateTime = System.currentTimeMillis(),
+                paymentType = selectedPaymentMethod // Use the variable directly
             )
 
             try {

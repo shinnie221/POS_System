@@ -26,6 +26,8 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pos_system.data.local.database.Converters
 import com.example.pos_system.data.local.database.entity.SalesEntity
+import com.example.pos_system.ui.report.ReportType
+import com.example.pos_system.ui.report.SalesReportsViewModel
 import com.example.pos_system.util.ExportHelper
 import com.example.pos_system.util.ReceiptPrinter
 import com.google.firebase.auth.FirebaseAuth
@@ -66,9 +68,9 @@ fun SalesReportsScreen(
     fun handleExportAndEmail(format: String) {
         showExportMenu = false
         val reportName = when (reportType) {
-            ReportType.DAILY -> "daily sales report (${SimpleDateFormat("d-M-yyyy", Locale.getDefault()).format(Date())})"
-            ReportType.MONTHLY -> "monthly sales report (${months[selectedMonth]} $selectedYear)"
-            ReportType.YEARLY -> "yearly sales report ($selectedYear)"
+            ReportType.DAILY -> "Daily Sales Report (${SimpleDateFormat("d-M-yyyy", Locale.getDefault()).format(Date())})"
+            ReportType.MONTHLY -> "Monthly Sales Report (${months[selectedMonth]} $selectedYear)"
+            ReportType.YEARLY -> "Yearly Sales Report ($selectedYear)"
         }
 
         val filePath = if (format == "Excel") {
