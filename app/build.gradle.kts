@@ -19,6 +19,14 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+    packaging {
+        resources {
+            // This tells Gradle to ignore these duplicate files
+            excludes += "/META-INF/LICENSE.md"
+            excludes += "/META-INF/NOTICE.md"
+            excludes += "/META-INF/LICENSE-spec.symbol"
+        }
+    }
 
     buildTypes {
         release {
@@ -111,4 +119,7 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
     //Printer
     implementation("com.github.Dantsu:ESCPOS-ThermalPrinter-Android:3.3.0")
+    //send to email
+    implementation("com.sun.mail:android-mail:1.6.7")
+    implementation("com.sun.mail:android-activation:1.6.7")
 }

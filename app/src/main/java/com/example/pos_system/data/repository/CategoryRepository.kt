@@ -49,14 +49,21 @@ class CategoryRepository(
         }
     }
 
+    // In CategoryRepository.kt
     suspend fun syncCategories() {
         try {
             val snapshot = firebaseService.helper.fetchCollectionWithIds("category")
             snapshot.forEach { (docId, data) ->
                 val name = data["categoryName"] as? String ?: ""
+                // FIX: Get the original timestamp from Firebase
+                val createdAt = data["createdAt"] as? Long ?: System.currentTimeMillis()
+
                 if (name.isNotEmpty()) {
-                    // Uses docId (Firebase ID) directly as the primary key
-                    val entity = CategoryEntity(id = docId, name = name)
+                    val entity = CategoryEntity(
+                        id = docId,
+                        name = name,
+                        createdAt = createdAt // Use the Firebase time, not current time
+                    )
                     categoryDao.insertCategory(entity)
                 }
             }

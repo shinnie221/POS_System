@@ -28,12 +28,14 @@ import com.example.pos_system.data.local.database.Converters
 import com.example.pos_system.data.local.database.entity.SalesEntity
 import com.example.pos_system.ui.report.ReportType
 import com.example.pos_system.ui.report.SalesReportsViewModel
+import com.example.pos_system.util.EmailSender
 import com.example.pos_system.util.ExportHelper
 import com.example.pos_system.util.ReceiptPrinter
 import com.google.firebase.auth.FirebaseAuth
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,25 +66,59 @@ fun SalesReportsScreen(
     val months = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
     val years = (2024..2026).toList()
     val paymentOptions = listOf("All", "Cash", "E-Wallet", "Delivery")
+    val scope = rememberCoroutineScope()
 
     fun handleExportAndEmail(format: String) {
         showExportMenu = false
-        val reportName = when (reportType) {
-            ReportType.DAILY -> "Daily Sales Report (${SimpleDateFormat("d-M-yyyy", Locale.getDefault()).format(Date())})"
-            ReportType.MONTHLY -> "Monthly Sales Report (${months[selectedMonth]} $selectedYear)"
-            ReportType.YEARLY -> "Yearly Sales Report ($selectedYear)"
+
+        // 1. Generate a Human-Readable Date Label for the Name
+        val dateLabel = when (reportType) {
+            ReportType.DAILY -> {
+                SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date())
+            }
+            ReportType.MONTHLY -> {
+                // e.g., "Oct 2024"
+                "${months[selectedMonth]} $selectedYear"
+            }
+            ReportType.YEARLY -> {
+                // e.g., "2024"
+                "$selectedYear"
+            }
         }
 
+        // 2. Create the specific Title (Colfi Monthly Sales Report Oct 2024)
+        val reportTitle = "Colfi ${reportType.name.lowercase().replaceFirstChar { it.uppercase() }} Sales Report $dateLabel"
+
+        // File names cannot have spaces, so we replace them with underscores for the actual file
+        val fileName = reportTitle.replace(" ", "_")
+
+        // 3. Export the file
         val filePath = if (format == "Excel") {
-            exportHelper.exportToExcel(sales, allSalesForComparison, reportName)
+            exportHelper.exportToExcel(sales, allSalesForComparison, fileName)
         } else {
-            exportHelper.exportToPdf(sales, allSalesForComparison, reportName)
+            exportHelper.exportToPdf(sales, allSalesForComparison, fileName)
         }
 
         if (filePath != null) {
-            sendEmailWithFile(context, File(filePath), currentUserEmail)
-        } else {
-            Toast.makeText(context, "Export Failed", Toast.LENGTH_SHORT).show()
+            val file = File(filePath)
+            val recipient1 = "shinniecheng221@gmail.com"
+
+            scope.launch {
+                Toast.makeText(context, "Preparing Email...", Toast.LENGTH_SHORT).show()
+
+                // 4. Pass the clean reportTitle to the EmailSender
+                val success = EmailSender.sendEmailWithAttachment(
+                    toEmail = recipient1,
+                    file = file,
+                    subjectTitle = reportTitle
+                )
+
+                if (success) {
+                    Toast.makeText(context, "Email Sent Successfully!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Email Failed (Check Connection/App Password)", Toast.LENGTH_LONG).show()
+                }
+            }
         }
     }
 

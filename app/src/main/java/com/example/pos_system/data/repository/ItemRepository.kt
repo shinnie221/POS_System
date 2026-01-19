@@ -48,37 +48,31 @@ class ItemRepository(
             type = itemType,
             createdAt = currentTime
         )
-
-        // Note: If you want itemType in Firebase (which you should for sync),
-        // update FirebaseService.addItem to accept it.
     }
 
+    // In ItemRepository.kt
     suspend fun syncItems() {
         try {
             val snapshot = firebaseService.helper.fetchCollectionWithIds("item")
-
-            // 1. CLEAR local items first so deleted Firebase items disappear from the app
-            itemDao.deleteAllItems()
+            itemDao.deleteAllItems() // Optional: keeps local in sync with remote deletions
 
             snapshot.forEach { (docId, data) ->
                 val name = data["itemName"] as? String ?: ""
-                val price = when (val p = data["itemPrice"]) {
-                    is Double -> p
-                    is Long -> p.toDouble()
-                    else -> 0.0
-                }
+                val price = (data["itemPrice"] as? Number)?.toDouble() ?: 0.0
                 val catId = data["categoryId"] as? String ?: ""
                 val type = data["itemType"] as? String ?: "water"
+                // FIX: Get the original timestamp from Firebase
+                val createdAt = data["createdAt"] as? Long ?: System.currentTimeMillis()
 
                 if (name.isNotEmpty()) {
-                    // 2. Use docId (Firebase ID) as the ID to prevent duplicates
                     itemDao.insertItem(
                         ItemEntity(
                             id = docId,
                             name = name,
                             price = price,
                             categoryId = catId,
-                            itemType = type
+                            itemType = type,
+                            createdAt = createdAt // Use the Firebase time
                         )
                     )
                 }
