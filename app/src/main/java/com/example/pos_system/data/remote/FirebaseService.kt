@@ -4,6 +4,8 @@ import com.example.pos_system.data.local.database.entity.SalesEntity
 import com.example.pos_system.data.model.Sales
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
+// Add this to FirebaseService.kt
+import com.google.firebase.firestore.Query
 
 //Link id to firebase id is added here
 class FirebaseService(val helper: FirebaseHelper = FirebaseHelper()) {
@@ -70,5 +72,35 @@ class FirebaseService(val helper: FirebaseHelper = FirebaseHelper()) {
     suspend fun deleteSale(id: String) {
         // If your sales IDs are Strings in Firebase
         db.collection("sales").document(id).delete().await()
+    }
+
+    fun <T> listenToCollection(
+        collectionName: String,
+        onDataChange: (List<Map<String, Any>>, List<String>, List<String>) -> Unit // Added third parameter for deleted IDs
+    ) {
+        db.collection(collectionName).addSnapshotListener { snapshot, error ->
+            if (error != null || snapshot == null) return@addSnapshotListener
+
+            val dataList = mutableListOf<Map<String, Any>>()
+            val idList = mutableListOf<String>()
+            val deletedIdList = mutableListOf<String>()
+
+            for (change in snapshot.documentChanges) {
+                val doc = change.document
+                when (change.type) {
+                    com.google.firebase.firestore.DocumentChange.Type.REMOVED -> {
+                        deletedIdList.add(doc.id)
+                    }
+                    else -> {
+                        // Added or Modified
+                        doc.data.let {
+                            dataList.add(it)
+                            idList.add(doc.id)
+                        }
+                    }
+                }
+            }
+            onDataChange(dataList, idList, deletedIdList)
+        }
     }
 }

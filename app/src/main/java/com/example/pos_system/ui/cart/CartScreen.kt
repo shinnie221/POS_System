@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.example.pos_system.R
 import com.example.pos_system.data.model.CartItem
 import com.example.pos_system.navigation.BottomNavigationBar
+import androidx.compose.runtime.State
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +53,9 @@ fun CartScreen(
         ) {
             // Header
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -77,11 +80,15 @@ fun CartScreen(
             }
 
             if (uiState.items.isEmpty()) {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Box(Modifier
+                    .weight(1f)
+                    .fillMaxWidth(), contentAlignment = Alignment.Center) {
                     Text("Your cart is empty", color = Color.Gray)
                 }
             } else {
-                LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp)) {
+                LazyColumn(Modifier
+                    .weight(1f)
+                    .padding(horizontal = 16.dp)) {
                     items(uiState.items) { item ->
                         CartItemRow(item) { cartViewModel.removeFromCart(item) }
                     }
@@ -111,7 +118,9 @@ fun CartScreen(
 
                 // Checkout Card
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(4.dp)
                 ) {
@@ -133,15 +142,30 @@ fun CartScreen(
                         }
                         Button(
                             onClick = { cartViewModel.checkout { showSuccessDialog = true } },
-                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD2B48C))
-                        ) { Text("Checkout", color = Color.White) }
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD2B48C)),
+                            // FIX: Disable the button when isCheckingOut is true to prevent double clicks
+                            enabled = !cartViewModel.isCheckingOut.value
+                        ) {
+                            if (cartViewModel.isCheckingOut.value) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("Checkout", color = Color.White)
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
+    // --- Dialogs ---
 
     if (showDiscountDialog) {
         DiscountDialog(
@@ -156,11 +180,21 @@ fun CartScreen(
     if (showSuccessDialog) {
         AlertDialog(
             onDismissRequest = { showSuccessDialog = false },
-            confirmButton = { Button(onClick = { showSuccessDialog = false }) { Text("OK") } },
+            confirmButton = {
+                Button(
+                    onClick = { showSuccessDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD2B48C))
+                ) { Text("OK") }
+            },
             title = { Text("Success") },
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.CheckCircle, null, Modifier.size(64.dp), Color(0xFF4CAF50))
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = Color(0xFF4CAF50)
+                    )
                     Text("Payment Successful!", Modifier.padding(top = 16.dp))
                 }
             }
@@ -170,7 +204,12 @@ fun CartScreen(
 
 @Composable
 fun CartItemRow(cartItem: CartItem, onRemove: () -> Unit) {
-    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White)
+    ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(cartItem.item.itemName, fontWeight = FontWeight.Bold)
@@ -192,16 +231,31 @@ fun DiscountDialog(onDismiss: () -> Unit, onApply: (DiscountType, Double) -> Uni
         text = {
             Column {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    FilterChip(selected = type == DiscountType.PERCENTAGE, onClick = { type = DiscountType.PERCENTAGE }, label = { Text("%") })
-                    FilterChip(selected = type == DiscountType.AMOUNT, onClick = { type = DiscountType.AMOUNT }, label = { Text("RM") })
+                    FilterChip(
+                        selected = type == DiscountType.PERCENTAGE,
+                        onClick = { type = DiscountType.PERCENTAGE },
+                        label = { Text("%") }
+                    )
+                    FilterChip(
+                        selected = type == DiscountType.AMOUNT,
+                        onClick = { type = DiscountType.AMOUNT },
+                        label = { Text("RM") }
+                    )
                 }
                 OutlinedTextField(
-                    value = value, onValueChange = { value = it },
-                    label = { Text("Value") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    value = value,
+                    onValueChange = { if (it.isEmpty() || it.matches(Regex("""^\d*\.?\d*$"""))) value = it },
+                    label = { Text("Value") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
-        confirmButton = { Button(onClick = { onApply(type, value.toDoubleOrNull() ?: 0.0) }) { Text("Apply") } }
+        confirmButton = {
+            Button(
+                onClick = { onApply(type, value.toDoubleOrNull() ?: 0.0) },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD2B48C))
+            ) { Text("Apply") }
+        }
     )
 }

@@ -17,4 +17,7 @@ interface SalesDao {
 
     @Delete
     suspend fun deleteSale(sale: SalesEntity)
+
+    @Query("DELETE FROM sales WHERE id = :saleId")
+    suspend fun deleteSaleById(saleId: String)
 }

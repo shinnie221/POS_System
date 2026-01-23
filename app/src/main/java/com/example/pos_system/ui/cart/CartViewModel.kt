@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.State
 
 enum class DiscountType { NONE, PERCENTAGE, AMOUNT }
 
@@ -32,10 +33,12 @@ class CartViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(CartUiState())
     val uiState: StateFlow<CartUiState> = _uiState.asStateFlow()
-
-    // Payment State
     var selectedPaymentMethod by mutableStateOf("Cash")
         private set
+
+    private var _isCheckingOut = mutableStateOf(false)
+    val isCheckingOut: State<Boolean> = _isCheckingOut
+
 
     fun setPaymentMethod(method: String) {
         selectedPaymentMethod = method
@@ -81,10 +84,14 @@ class CartViewModel(application: Application) : AndroidViewModel(application) {
 
     fun checkout(onSuccess: () -> Unit) {
         val currentState = _uiState.value
-        if (currentState.items.isEmpty()) return
+
+        // FIX: Prevent multiple clicks if already processing or cart is empty
+        if (_isCheckingOut.value || currentState.items.isEmpty()) return
+
+        // Lock the button
+        _isCheckingOut.value = true
 
         viewModelScope.launch {
-            // Note: processCheckout in SalesRepository generates the actual Firebase ID
             val sale = Sales(
                 saleId = "",
                 totalAmount = currentState.totalAmount,
@@ -92,7 +99,7 @@ class CartViewModel(application: Application) : AndroidViewModel(application) {
                 finalPrice = currentState.finalPrice,
                 items = currentState.items,
                 dateTime = System.currentTimeMillis(),
-                paymentType = selectedPaymentMethod // Use the variable directly
+                paymentType = selectedPaymentMethod
             )
 
             try {
@@ -101,6 +108,9 @@ class CartViewModel(application: Application) : AndroidViewModel(application) {
                 onSuccess()
             } catch (e: Exception) {
                 android.util.Log.e("CHECKOUT_ERROR", e.message ?: "Error")
+            } finally {
+                // Unlock the button whether it succeeded or failed
+                _isCheckingOut.value = false
             }
         }
     }

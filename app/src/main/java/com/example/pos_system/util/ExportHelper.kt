@@ -2,6 +2,7 @@ package com.example.pos_system.util
 
 import android.content.Context
 import com.example.pos_system.data.local.database.entity.SalesEntity
+import com.example.pos_system.data.local.database.Converters
 import com.itextpdf.kernel.pdf.PdfDocument
 import com.itextpdf.kernel.pdf.PdfWriter
 import com.itextpdf.layout.Document
@@ -93,26 +94,51 @@ class ExportHelper(private val context: Context) {
     fun exportToExcel(currentSales: List<SalesEntity>, allSales: List<SalesEntity>, fileName: String): String? {
         return try {
             val data = calculateAnalytics(currentSales, allSales, fileName)
+            val converter = Converters()
+
+            val totalDiscount = currentSales.sumOf { sale ->
+                val items = converter.toCartItemList(sale.itemsJson)
+                val originalPrice = items.sumOf { it.item.itemPrice * it.quantity }
+                (originalPrice - sale.totalAmount).coerceAtLeast(0.0)
+            }
+
             val file = getInternalCacheFile(fileName, ".xlsx")
             val workbook = XSSFWorkbook()
-            val sheet = workbook.createSheet("Summary")
+            val sheet = workbook.createSheet("Report")
 
             var r = 0
             sheet.createRow(r++).createCell(0).setCellValue("COLFI - $fileName")
             r++
+
             sheet.createRow(r++).createCell(0).setCellValue("1. SALES SUMMARY")
             sheet.createRow(r++).apply { createCell(0).setCellValue("Total Sales:"); createCell(1).setCellValue("RM ${String.format("%.2f", data.revenue)}") }
+            sheet.createRow(r++).apply { createCell(0).setCellValue("Total Discount:"); createCell(1).setCellValue("RM ${String.format("%.2f", totalDiscount)}") }
             sheet.createRow(r++).apply { createCell(0).setCellValue("Transactions:"); createCell(1).setCellValue(data.transactions.toDouble()) }
-
-            // FIX: Changed "Yearly Comparison" to generic "Comparison" to support Monthly reports
             sheet.createRow(r++).apply { createCell(0).setCellValue("Comparison:"); createCell(1).setCellValue(data.comparison) }
-            sheet.createRow(r++).apply { createCell(0).setCellValue("Peak Day:"); createCell(1).setCellValue(data.peakDay) }
-
+            sheet.createRow(r++).apply { createCell(0).setCellValue("Peak Sales Day:"); createCell(1).setCellValue(data.peakDay) }
             r++
+
             sheet.createRow(r++).createCell(0).setCellValue("2. PAYMENT BREAKDOWN")
             sheet.createRow(r++).apply { createCell(0).setCellValue("Cash:"); createCell(1).setCellValue("RM ${String.format("%.2f", data.cash)}") }
             sheet.createRow(r++).apply { createCell(0).setCellValue("E-Wallet:"); createCell(1).setCellValue("RM ${String.format("%.2f", data.eWallet)}") }
             sheet.createRow(r++).apply { createCell(0).setCellValue("Delivery:"); createCell(1).setCellValue("RM ${String.format("%.2f", data.delivery)}") }
+            r++
+
+            sheet.createRow(r++).createCell(0).setCellValue("3. TRANSACTION DETAILS")
+            val headerRow = sheet.createRow(r++)
+            headerRow.createCell(0).setCellValue("Order ID")
+            headerRow.createCell(1).setCellValue("Payment")
+            headerRow.createCell(2).setCellValue("Amount (RM)")
+            headerRow.createCell(3).setCellValue("Date")
+
+            val df = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+            currentSales.forEach { sale ->
+                val row = sheet.createRow(r++)
+                row.createCell(0).setCellValue(sale.id.takeLast(6).uppercase())
+                row.createCell(1).setCellValue(sale.paymentType)
+                row.createCell(2).setCellValue(sale.totalAmount)
+                row.createCell(3).setCellValue(df.format(Date(sale.timestamp)))
+            }
 
             FileOutputStream(file).use { workbook.write(it) }
             workbook.close()
@@ -123,28 +149,55 @@ class ExportHelper(private val context: Context) {
     fun exportToPdf(currentSales: List<SalesEntity>, allSales: List<SalesEntity>, fileName: String): String? {
         return try {
             val data = calculateAnalytics(currentSales, allSales, fileName)
+            val converter = Converters()
+
+            val totalDiscount = currentSales.sumOf { sale ->
+                val items = converter.toCartItemList(sale.itemsJson)
+                val originalPrice = items.sumOf { it.item.itemPrice * it.quantity }
+                (originalPrice - sale.totalAmount).coerceAtLeast(0.0)
+            }
+
             val file = getInternalCacheFile(fileName, ".pdf")
             val writer = PdfWriter(FileOutputStream(file))
             val pdf = PdfDocument(writer)
             val document = Document(pdf)
 
             document.add(Paragraph("COLFI - $fileName").setBold().setFontSize(16f).setTextAlignment(TextAlignment.CENTER))
-            document.add(Paragraph("Generated: ${SimpleDateFormat("dd/MM/yyyy HH:mm").format(Date())}").setFontSize(9f).setTextAlignment(TextAlignment.CENTER))
+            document.add(Paragraph("Generated on: ${SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date())}").setFontSize(10f).setTextAlignment(TextAlignment.CENTER))
 
             document.add(Paragraph("\n1. SALES SUMMARY").setBold())
             document.add(Paragraph("Total Sales: RM ${String.format("%.2f", data.revenue)}"))
+            document.add(Paragraph("Total Discount: RM ${String.format("%.2f", totalDiscount)}"))
             document.add(Paragraph("Transactions: ${data.transactions}"))
-
-            // FIX: Changed "Yearly Comparison" to generic "Comparison"
             document.add(Paragraph("Comparison: ${data.comparison}"))
-            document.add(Paragraph("Peak Day: ${data.peakDay}"))
+            document.add(Paragraph("Peak Sales Day: ${data.peakDay}"))
 
             document.add(Paragraph("\n2. PAYMENT BREAKDOWN").setBold())
             val pTable = Table(UnitValue.createPercentArray(floatArrayOf(1f, 1f))).useAllAvailableWidth()
-            pTable.addCell("Cash").addCell("RM ${String.format("%.2f", data.cash)}")
-            pTable.addCell("E-Wallet").addCell("RM ${String.format("%.2f", data.eWallet)}")
-            pTable.addCell("Delivery").addCell("RM ${String.format("%.2f", data.delivery)}")
+            pTable.addCell("Cash")
+            pTable.addCell("RM ${String.format("%.2f", data.cash)}")
+            pTable.addCell("E-Wallet")
+            pTable.addCell("RM ${String.format("%.2f", data.eWallet)}")
+            pTable.addCell("Delivery")
+            pTable.addCell("RM ${String.format("%.2f", data.delivery)}")
             document.add(pTable)
+
+            document.add(Paragraph("\n3. TRANSACTION DETAILS").setBold())
+            val table = Table(UnitValue.createPercentArray(floatArrayOf(2f, 2f, 2f, 3f))).useAllAvailableWidth()
+            table.addHeaderCell("ID")
+            table.addHeaderCell("Payment")
+            table.addHeaderCell("Price")
+            table.addHeaderCell("Date")
+
+            // Updated date format to include dd/MM/yyyy (Full Year)
+            val df = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+            currentSales.forEach { sale ->
+                table.addCell(sale.id.takeLast(4).uppercase())
+                table.addCell(sale.paymentType)
+                table.addCell("RM ${String.format("%.2f", sale.totalAmount)}")
+                table.addCell(df.format(Date(sale.timestamp)))
+            }
+            document.add(table)
 
             document.close()
             file.absolutePath

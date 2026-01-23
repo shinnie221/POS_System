@@ -1,11 +1,13 @@
 package com.example.pos_system.data.repository
 
+import androidx.activity.result.launch
 import com.example.pos_system.data.local.database.dao.ItemDao
 import com.example.pos_system.data.local.database.entity.ItemEntity
 import com.example.pos_system.data.remote.CloudinaryService
 import com.example.pos_system.data.remote.FirebaseService
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 class ItemRepository(
@@ -16,13 +18,20 @@ class ItemRepository(
     val allItems: Flow<List<ItemEntity>> = itemDao.getAllItems()
 
     // Get items filtered by category ID from local Room database
-    fun getItemsByCategory(catId: String): Flow<List<ItemEntity>> = itemDao.getItemsByCategory(catId)
+    fun getItemsByCategory(catId: String): Flow<List<ItemEntity>> =
+        itemDao.getItemsByCategory(catId)
 
     /**
      * Adds a new item to both the local Room database and remote Firebase.
      * Generates a unique String ID to ensure compatibility with Firebase auto-generated IDs.
      */
-    suspend fun addItem(name: String, price: Double, categoryId: String, itemType: String, imagePath: String? = null) {
+    suspend fun addItem(
+        name: String,
+        price: Double,
+        categoryId: String,
+        itemType: String,
+        imagePath: String? = null
+    ) {
 
         val db = FirebaseFirestore.getInstance()
         val firebaseId = db.collection("item").document().id
@@ -88,6 +97,27 @@ class ItemRepository(
             firebaseService.deleteItem(item.id)
         } catch (e: Exception) {
             android.util.Log.e("DELETE_ERROR", "Item Firebase delete failed: ${e.message}")
+        }
+    }
+
+    // In ItemRepository.kt
+    fun startRealTimeSync() {
+        // Add the third parameter (e.g., '_') to the lambda arguments
+        firebaseService.listenToCollection<Map<String, Any>>("item") { dataList, idList, _ ->
+            @Suppress("OPT_IN_USAGE")
+            kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                dataList.forEachIndexed { index, data ->
+                    val entity = ItemEntity(
+                        id = idList[index],
+                        name = data["itemName"] as? String ?: "",
+                        price = (data["itemPrice"] as? Number)?.toDouble() ?: 0.0,
+                        categoryId = data["categoryId"] as? String ?: "",
+                        itemType = data["itemType"] as? String ?: "water",
+                        createdAt = data["createdAt"] as? Long ?: System.currentTimeMillis()
+                    )
+                    itemDao.insertItem(entity)
+                }
+            }
         }
     }
 }

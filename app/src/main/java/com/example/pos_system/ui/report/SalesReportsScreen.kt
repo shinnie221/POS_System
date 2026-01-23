@@ -22,12 +22,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pos_system.data.local.database.Converters
 import com.example.pos_system.data.local.database.entity.SalesEntity
-import com.example.pos_system.ui.report.ReportType
-import com.example.pos_system.ui.report.SalesReportsViewModel
 import com.example.pos_system.util.EmailSender
 import com.example.pos_system.util.ExportHelper
 import com.example.pos_system.util.ReceiptPrinter
@@ -44,7 +41,6 @@ fun SalesReportsScreen(
     viewModel: SalesReportsViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    val currentUserEmail = remember { FirebaseAuth.getInstance().currentUser?.email }
     val exportHelper = remember { ExportHelper(context) }
     val receiptPrinter = remember { ReceiptPrinter(context) }
 
@@ -70,29 +66,15 @@ fun SalesReportsScreen(
 
     fun handleExportAndEmail(format: String) {
         showExportMenu = false
-
-        // 1. Generate a Human-Readable Date Label for the Name
         val dateLabel = when (reportType) {
-            ReportType.DAILY -> {
-                SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date())
-            }
-            ReportType.MONTHLY -> {
-                // e.g., "Oct 2024"
-                "${months[selectedMonth]} $selectedYear"
-            }
-            ReportType.YEARLY -> {
-                // e.g., "2024"
-                "$selectedYear"
-            }
+            ReportType.DAILY -> SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date())
+            ReportType.MONTHLY -> "${months[selectedMonth]} $selectedYear"
+            ReportType.YEARLY -> "$selectedYear"
         }
 
-        // 2. Create the specific Title (Colfi Monthly Sales Report Oct 2024)
         val reportTitle = "Colfi ${reportType.name.lowercase().replaceFirstChar { it.uppercase() }} Sales Report $dateLabel"
-
-        // File names cannot have spaces, so we replace them with underscores for the actual file
         val fileName = reportTitle.replace(" ", "_")
 
-        // 3. Export the file
         val filePath = if (format == "Excel") {
             exportHelper.exportToExcel(sales, allSalesForComparison, fileName)
         } else {
@@ -101,22 +83,21 @@ fun SalesReportsScreen(
 
         if (filePath != null) {
             val file = File(filePath)
-            val recipient1 = "shinniecheng221@gmail.com"
+            val colfiEmail = "colfi.coffee@gmail.com"
+            val shinnieEmail = "shinniecheng221@gmail.com"
 
             scope.launch {
-                Toast.makeText(context, "Preparing Email...", Toast.LENGTH_SHORT).show()
-
-                // 4. Pass the clean reportTitle to the EmailSender
-                val success = EmailSender.sendEmailWithAttachment(
-                    toEmail = recipient1,
+                Toast.makeText(context, "Sending reports...", Toast.LENGTH_SHORT).show()
+                val success = EmailSender.sendReportToColfiAndShinnie(
+                    colfiEmail = colfiEmail,
+                    shinnieEmail = shinnieEmail,
                     file = file,
                     subjectTitle = reportTitle
                 )
-
                 if (success) {
-                    Toast.makeText(context, "Email Sent Successfully!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Reports sent successfully!", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(context, "Email Failed (Check Connection/App Password)", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Email failed. Check App Password.", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -126,9 +107,7 @@ fun SalesReportsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Sales Reports", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
-                },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") } },
                 actions = {
                     IconButton(onClick = { showExportMenu = true }) { Icon(Icons.Default.Email, null) }
                     DropdownMenu(expanded = showExportMenu, onDismissRequest = { showExportMenu = false }) {
@@ -140,11 +119,7 @@ fun SalesReportsScreen(
             )
         }
     ) { padding ->
-        Column(modifier = Modifier
-            .padding(padding)
-            .fillMaxSize()
-            .background(Color(0xFFFDF8F3))) {
-
+        Column(modifier = Modifier.padding(padding).fillMaxSize().background(Color(0xFFFDF8F3))) {
             TabRow(selectedTabIndex = reportType.ordinal, contentColor = Color(0xFFD2B48C)) {
                 ReportType.entries.forEach { type ->
                     Tab(
@@ -193,7 +168,13 @@ fun SalesReportsScreen(
                 Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("TOTAL REVENUE", color = Color.White.copy(0.7f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     Text("RM ${String.format("%.2f", summary.totalRevenue)}", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
-                    Text("${summary.totalTransactions} Orders", color = Color.White.copy(0.9f), fontSize = 14.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${summary.totalTransactions} Orders", color = Color.White.copy(0.9f), fontSize = 14.sp)
+                        if (reportType != ReportType.DAILY) {
+                            Text(" | ", color = Color.White.copy(0.5f))
+                            Text(summary.comparisonText, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
 
@@ -206,7 +187,7 @@ fun SalesReportsScreen(
                         colors = CardDefaults.cardColors(containerColor = Color.White)
                     ) {
                         ListItem(
-                            headlineContent = { Text("Order #${String.format("%02d", sales.size - index)}", fontWeight = FontWeight.Bold) },
+                            headlineContent = { Text("Order #${sale.id.takeLast(4).uppercase()}", fontWeight = FontWeight.Bold) },
                             supportingContent = {
                                 Column {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -233,13 +214,20 @@ fun SalesReportsScreen(
             }
         }
 
+        // --- DIALOGS ---
         selectedOrderForDetail?.let { sale -> OrderDetailDialog(sale, { selectedOrderForDetail = null }, { receiptPrinter.printSale(it) }) }
+
         saleToDelete?.let { sale ->
             AlertDialog(
                 onDismissRequest = { saleToDelete = null },
                 title = { Text("Delete Sale") },
-                text = { Text("Permanently delete this order?") },
-                confirmButton = { Button(onClick = { viewModel.deleteSale(sale); saleToDelete = null }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Delete") } },
+                text = { Text("Permanently delete this order? This cannot be undone.") },
+                confirmButton = {
+                    Button(
+                        onClick = { viewModel.deleteSale(sale); saleToDelete = null },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                    ) { Text("Delete") }
+                },
                 dismissButton = { TextButton(onClick = { saleToDelete = null }) { Text("Cancel") } }
             )
         }
@@ -249,9 +237,8 @@ fun SalesReportsScreen(
 @Composable
 fun OrderDetailDialog(sale: SalesEntity, onDismiss: () -> Unit, onPrint: (SalesEntity) -> Unit) {
     val items = Converters().toCartItemList(sale.itemsJson)
-    val original = items.sumOf { it.item.itemPrice * it.quantity }
-    val finalAmount = sale.totalAmount
-    val discount = original - finalAmount
+    val subtotal = items.sumOf { it.item.itemPrice * it.quantity }
+    val discount = (subtotal - sale.totalAmount).coerceAtLeast(0.0)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -261,55 +248,33 @@ fun OrderDetailDialog(sale: SalesEntity, onDismiss: () -> Unit, onPrint: (SalesE
                 TextButton(onClick = onDismiss) { Text("Close") }
             }
         },
-        title = { Text("Order Detail") },
+        title = { Text("Order Detail #${sale.id.takeLast(6).uppercase()}", fontWeight = FontWeight.Bold) },
         text = {
             Column(Modifier.fillMaxWidth()) {
-                Text(SimpleDateFormat("d/M/yyyy HH:mm:ss", Locale.getDefault()).format(Date(sale.timestamp)), fontSize = 12.sp, color = Color.Gray)
-                HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                items.forEach { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                    Text("${it.quantity}x ${it.item.itemName}", Modifier.weight(1f), fontSize = 14.sp)
-                    Text("RM ${String.format("%.2f", it.totalPrice)}", fontSize = 14.sp)
-                } }
-                HorizontalDivider(Modifier.padding(vertical = 12.dp))
-
-                PriceRow("Original Total", original)
-                if (discount > 0.01) {
-                    PriceRow("Total Discount", -discount, Color.Red)
+                items.forEach { cartItem ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${cartItem.quantity}x ${cartItem.item.itemName}", modifier = Modifier.weight(1f))
+                        Text("RM ${String.format("%.2f", cartItem.totalPrice)}")
+                    }
                 }
-                PriceRow("Payment Method", 0.0, label2 = sale.paymentType)
-
+                HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                if (discount > 0) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Subtotal", color = Color.Gray)
+                        Text("RM ${String.format("%.2f", subtotal)}", color = Color.Gray)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Discount", color = Color.Red)
+                        Text("- RM ${String.format("%.2f", discount)}", color = Color.Red)
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Final Paid", fontWeight = FontWeight.ExtraBold, color = Color(0xFFD2B48C))
+                    Text("RM ${String.format("%.2f", sale.totalAmount)}", fontWeight = FontWeight.ExtraBold, color = Color(0xFFD2B48C))
+                }
                 Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                    Text("Final Price", fontWeight = FontWeight.Bold)
-                    Text("RM ${String.format("%.2f", finalAmount)}", color = Color(0xFFD2B48C), fontWeight = FontWeight.Bold)
-                }
+                Text("Payment: ${sale.paymentType}", fontSize = 12.sp, color = Color.Gray)
             }
         }
     )
-}
-
-@Composable
-fun PriceRow(label: String, amount: Double, color: Color = Color.Black, label2: String? = null) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), Arrangement.SpaceBetween) {
-        Text(label, fontSize = 13.sp, color = Color.Gray)
-        Text(label2 ?: (if (amount < 0) "- RM ${String.format("%.2f", -amount)}" else "RM ${String.format("%.2f", amount)}"), fontSize = 13.sp, color = color, fontWeight = FontWeight.Medium)
-    }
-}
-
-fun sendEmailWithFile(context: Context, file: File, recipientEmail: String?) {
-    try {
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/octet-stream"
-            if (!recipientEmail.isNullOrEmpty()) {
-                putExtra(Intent.EXTRA_EMAIL, arrayOf(recipientEmail))
-            }
-            putExtra(Intent.EXTRA_SUBJECT, "Sales Report: ${file.name}")
-            putExtra(Intent.EXTRA_STREAM, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        context.startActivity(Intent.createChooser(intent, "Send Email"))
-    } catch (e: Exception) {
-        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
-    }
 }

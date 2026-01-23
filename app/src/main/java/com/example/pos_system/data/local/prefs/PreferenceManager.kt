@@ -13,45 +13,52 @@ class PreferenceManager(context: Context) {
         private const val KEY_USER_ROLE = "user_role"
         private const val KEY_BRANCH_ID = "branch_id"
         private const val KEY_LAST_SYNC = "last_sync_time"
+        // New keys for offline auth
+        private const val KEY_SAVED_EMAIL = "saved_user_email"
+        private const val KEY_SAVED_PASSWORD = "saved_user_password"
     }
 
-    // Save Login State
+    // --- Existing Methods ---
     fun setLoggedIn(isLoggedIn: Boolean) {
         sharedPreferences.edit().putBoolean(KEY_IS_LOGGED_IN, isLoggedIn).apply()
     }
 
-    fun isLoggedIn(): Boolean {
-        return sharedPreferences.getBoolean(KEY_IS_LOGGED_IN, false)
-    }
+    fun isLoggedIn(): Boolean = sharedPreferences.getBoolean(KEY_IS_LOGGED_IN, false)
 
-    // Save User Role (Admin, Cashier, etc.)
     fun setUserRole(role: String) {
         sharedPreferences.edit().putString(KEY_USER_ROLE, role).apply()
     }
 
-    fun getUserRole(): String? {
-        return sharedPreferences.getString(KEY_USER_ROLE, "Staff")
-    }
+    fun getUserRole(): String? = sharedPreferences.getString(KEY_USER_ROLE, "Staff")
 
-    // Save Branch ID (Useful for POS systems with multiple outlets)
     fun setBranchId(branchId: String) {
         sharedPreferences.edit().putString(KEY_BRANCH_ID, branchId).apply()
     }
 
-    fun getBranchId(): String? {
-        return sharedPreferences.getString(KEY_BRANCH_ID, "Main")
+    fun getBranchId(): String? = sharedPreferences.getString(KEY_BRANCH_ID, "Main")
+
+    // --- NEW METHODS FOR OFFLINE LOGIN ---
+
+    /**
+     * Saves credentials locally after a successful Firebase login.
+     */
+    fun saveCredentials(email: String, password: String) {
+        sharedPreferences.edit()
+            .putString(KEY_SAVED_EMAIL, email)
+            .putString(KEY_SAVED_PASSWORD, password)
+            .apply()
     }
 
-    // Track Last Firebase Sync Time
+    fun getSavedEmail(): String? = sharedPreferences.getString(KEY_SAVED_EMAIL, null)
+
+    fun getSavedPassword(): String? = sharedPreferences.getString(KEY_SAVED_PASSWORD, null)
+
     fun setLastSyncTime(timestamp: Long) {
         sharedPreferences.edit().putLong(KEY_LAST_SYNC, timestamp).apply()
     }
 
-    fun getLastSyncTime(): Long {
-        return sharedPreferences.getLong(KEY_LAST_SYNC, 0L)
-    }
+    fun getLastSyncTime(): Long = sharedPreferences.getLong(KEY_LAST_SYNC, 0L)
 
-    // Clear all data (Logout)
     fun clearPrefs() {
         sharedPreferences.edit().clear().apply()
     }

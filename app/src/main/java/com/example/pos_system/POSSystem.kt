@@ -19,4 +19,5 @@ class POSSystem : Application() {
         // Initialize the Dependency Injection container
         appModule = AppModule(this)
     }
+
 }

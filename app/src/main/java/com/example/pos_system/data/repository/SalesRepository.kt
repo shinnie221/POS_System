@@ -1,12 +1,16 @@
 package com.example.pos_system.data.repository
 
+import androidx.activity.result.launch
 import com.example.pos_system.data.local.database.dao.SalesDao
 import com.example.pos_system.data.local.database.entity.SalesEntity
 import com.example.pos_system.data.model.Sales
 import com.example.pos_system.data.remote.FirebaseService
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.gson.Gson
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
 
 class SalesRepository(
     private val salesDao: SalesDao,
@@ -32,7 +36,8 @@ class SalesRepository(
         salesDao.insertSale(salesEntity)
 
         // 3. Sync to Firebase
-        val updatedSalesModel = salesModel.copy(saleId = firebaseId) // Assuming Sales data class has a saleId property
+        val updatedSalesModel =
+            salesModel.copy(saleId = firebaseId) // Assuming Sales data class has a saleId property
         firebaseService.recordSale(updatedSalesModel)
     } // processCheckout ends here
 
@@ -89,6 +94,50 @@ class SalesRepository(
             }
         } catch (e: Exception) {
             android.util.Log.e("SYNC_DEBUG", "Sales Sync Error: ${e.message}")
+        }
+    }
+
+    /**
+     * Listens to Firebase "sales" collection and updates Room in real-time.
+     */
+    // In SalesRepository.kt
+
+    fun startRealTimeSync() {
+        firebaseService.listenToCollection<Map<String, Any>>("sales") { dataList, idList, deletedIds ->
+            @Suppress("OPT_IN_USAGE")
+            GlobalScope.launch(Dispatchers.IO) {
+
+                // 1. Handle Deletions: If ID is in deletedIds, remove it from Room
+                deletedIds.forEach { id ->
+                    salesDao.deleteSaleById(id)
+                }
+
+                // 2. Handle Adds/Updates
+                dataList.forEachIndexed { index, data ->
+                    val finalPrice = (data["finalPrice"] as? Number)?.toDouble() ?: 0.0
+                    val timestamp = when (val dt = data["dateTime"]) {
+                        is com.google.firebase.Timestamp -> dt.toDate().time
+                        is Long -> dt
+                        else -> System.currentTimeMillis()
+                    }
+
+                    val itemsData = data["items"]
+                    val itemsJson = when (itemsData) {
+                        is String -> itemsData
+                        is List<*> -> Gson().toJson(itemsData)
+                        else -> data["itemsJson"] as? String ?: "[]"
+                    }
+
+                    val entity = SalesEntity(
+                        id = idList[index],
+                        totalAmount = finalPrice,
+                        timestamp = timestamp,
+                        itemsJson = itemsJson,
+                        paymentType = data["paymentType"] as? String ?: "Cash"
+                    )
+                    salesDao.insertSale(entity)
+                }
+            }
         }
     }
 }

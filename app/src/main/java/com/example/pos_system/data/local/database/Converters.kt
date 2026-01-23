@@ -10,12 +10,17 @@ class Converters {
 
     @TypeConverter
     fun fromCartItemList(value: List<CartItem>?): String {
-        return gson.toJson(value)
+        return if (value == null) "[]" else gson.toJson(value)
     }
 
     @TypeConverter
-    fun toCartItemList(value: String): List<CartItem> {
-        val listType = object : TypeToken<List<CartItem>>() {}.type
-        return gson.fromJson(value, listType) ?: emptyList()
+    fun toCartItemList(value: String?): List<CartItem> {
+        if (value.isNullOrBlank()) return emptyList()
+        return try {
+            val listType = object : TypeToken<List<CartItem>>() {}.type
+            gson.fromJson(value, listType) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 }
