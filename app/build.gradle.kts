@@ -86,6 +86,7 @@ dependencies {
     // Cloudinary
     implementation("com.cloudinary:cloudinary-android:3.0.2")
     implementation(libs.androidx.adapters)
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Room Database
     val room_version = "2.6.1"

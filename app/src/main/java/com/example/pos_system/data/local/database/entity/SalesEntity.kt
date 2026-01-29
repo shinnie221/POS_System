@@ -10,5 +10,6 @@ data class SalesEntity(
     val timestamp: Long,
     val totalAmount: Double,
     val itemsJson: String,
-    val paymentType: String
+    val paymentType: String,
+    val isSynced: Boolean = false
 )

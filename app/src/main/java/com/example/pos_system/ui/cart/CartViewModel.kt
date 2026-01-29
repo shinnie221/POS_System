@@ -1,6 +1,10 @@
+// C:/Users/shinn/StudioProjects/POS_System/app/src/main/java/com/example/pos_system/ui/cart/CartViewModel.kt
+
 package com.example.pos_system.ui.cart
 
 import android.app.Application
+import android.util.Log
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -14,7 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import androidx.compose.runtime.State
+import java.util.UUID
 
 enum class DiscountType { NONE, PERCENTAGE, AMOUNT }
 
@@ -33,12 +37,12 @@ class CartViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(CartUiState())
     val uiState: StateFlow<CartUiState> = _uiState.asStateFlow()
+
     var selectedPaymentMethod by mutableStateOf("Cash")
         private set
 
     private var _isCheckingOut = mutableStateOf(false)
     val isCheckingOut: State<Boolean> = _isCheckingOut
-
 
     fun setPaymentMethod(method: String) {
         selectedPaymentMethod = method
@@ -84,16 +88,14 @@ class CartViewModel(application: Application) : AndroidViewModel(application) {
 
     fun checkout(onSuccess: () -> Unit) {
         val currentState = _uiState.value
-
-        // FIX: Prevent multiple clicks if already processing or cart is empty
         if (_isCheckingOut.value || currentState.items.isEmpty()) return
 
-        // Lock the button
         _isCheckingOut.value = true
 
         viewModelScope.launch {
             val sale = Sales(
-                saleId = "",
+                // Use UUID so the sale has an ID immediately for local storage
+                saleId = UUID.randomUUID().toString(),
                 totalAmount = currentState.totalAmount,
                 discountApplied = currentState.discountApplied,
                 finalPrice = currentState.finalPrice,
@@ -103,15 +105,40 @@ class CartViewModel(application: Application) : AndroidViewModel(application) {
             )
 
             try {
+                // This repo method should:
+                // 1. Save to Room database immediately
+                // 2. Try to save to Firebase if online
                 salesRepo.processCheckout(sale)
+
                 clearCart()
                 onSuccess()
             } catch (e: Exception) {
-                android.util.Log.e("CHECKOUT_ERROR", e.message ?: "Error")
+                Log.e("CHECKOUT_ERROR", "Error: ${e.message}")
             } finally {
-                // Unlock the button whether it succeeded or failed
                 _isCheckingOut.value = false
             }
+        }
+    }
+
+    fun updateQuantity(cartItem: CartItem, newQuantity: Int) {
+        if (newQuantity <= 0) {
+            removeFromCart(cartItem)
+            return
+        }
+
+        _uiState.update { currentState ->
+            val updatedItems = currentState.items.map { item ->
+                // Use .itemId (or whatever your Item model's ID field is named)
+                if (item.item.itemId == cartItem.item.itemId) {
+                    // Only copy 'quantity'. totalPrice updates automatically!
+                    item.copy(
+                        quantity = newQuantity
+                    )
+                } else {
+                    item
+                }
+            }
+            calculateTotals(currentState.copy(items = updatedItems))
         }
     }
 }

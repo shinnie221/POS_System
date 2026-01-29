@@ -129,14 +129,22 @@ class SalesReportsViewModel(application: Application) : AndroidViewModel(applica
 
         return when (type) {
             ReportType.DAILY -> {
-                // Returns current day's start to now
-                val start = Calendar.getInstance().apply {
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }.timeInMillis
-                Pair(start, System.currentTimeMillis())
+                val cal = Calendar.getInstance()
+                // Start of TODAY
+                cal.set(Calendar.HOUR_OF_DAY, 0)
+                cal.set(Calendar.MINUTE, 0)
+                cal.set(Calendar.SECOND, 0)
+                cal.set(Calendar.MILLISECOND, 0)
+                val start = cal.timeInMillis
+
+                // End of TODAY (Set to 23:59:59 instead of System.currentTimeMillis)
+                cal.set(Calendar.HOUR_OF_DAY, 23)
+                cal.set(Calendar.MINUTE, 59)
+                cal.set(Calendar.SECOND, 59)
+                cal.set(Calendar.MILLISECOND, 999)
+                val end = cal.timeInMillis
+
+                Pair(start, end)
             }
             ReportType.MONTHLY -> {
                 cal.set(Calendar.MONTH, month)
@@ -164,7 +172,7 @@ class SalesReportsViewModel(application: Application) : AndroidViewModel(applica
 
     init {
         viewModelScope.launch {
-            salesRepo.syncSales()
+            salesRepo.startRealTimeSync()
         }
     }
 }
